@@ -15,9 +15,10 @@ print("=" * 80)
 print("TASK 2.1: X-RAY PNEUMONIA DATASET PREPARATION")
 print("=" * 80)
 
-# Configuration
-data_folder = "/Users/mashrafi/dev/HC701/assignment2/pneumonia_data"
-output_folder = "/Users/mashrafi/dev/HC701/assignment2/pneumonia_results"
+# Configuration - use relative paths for cross-platform compatibility
+script_dir = os.path.dirname(os.path.abspath(__file__))
+data_folder = os.path.join(script_dir, "pneumonia_data")
+output_folder = os.path.join(script_dir, "pneumonia_results")
 
 os.makedirs(data_folder, exist_ok=True)
 os.makedirs(output_folder, exist_ok=True)

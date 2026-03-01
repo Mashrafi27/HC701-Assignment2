@@ -36,10 +36,12 @@ CONFIG = {
     "early_stopping_patience": 5,
 }
 
+# Use relative paths for cross-platform compatibility
+script_dir = os.path.dirname(os.path.abspath(__file__))
 PATHS = {
-    "data_dir": Path("/Users/mashrafi/dev/HC701/assignment2/pneumonia_data/chest_xray"),
-    "csv_file": Path("/Users/mashrafi/dev/HC701/assignment2/pneumonia_results/data_split.csv"),
-    "output_dir": Path("/Users/mashrafi/dev/HC701/assignment2/pneumonia_results/ml_experiments"),
+    "data_dir": Path(script_dir) / "pneumonia_data" / "chest_xray",
+    "csv_file": Path(script_dir) / "pneumonia_results" / "data_split.csv",
+    "output_dir": Path(script_dir) / "pneumonia_results" / "ml_experiments",
 }
 
 PATHS["output_dir"].mkdir(parents=True, exist_ok=True)
