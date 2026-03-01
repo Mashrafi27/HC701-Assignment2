@@ -36,7 +36,7 @@ except ImportError:
 CONFIG = {
     "batch_size": 32,
     "num_epochs": 50,
-    "learning_rate": 0.001,
+    "learning_rate": 0.003,
     "image_size": 224,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "seed": 42,
