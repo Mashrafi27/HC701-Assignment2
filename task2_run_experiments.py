@@ -181,7 +181,7 @@ class Trainer:
             correct += (predictions == labels).sum().item()
             total += labels.size(0)
             
-            pbar.set_postfix({'loss': loss.item():.4f})
+            pbar.set_postfix({'loss': f'{loss.item():.4f}'})
         
         avg_loss = total_loss / len(self.train_loader)
         accuracy = correct / total
@@ -211,7 +211,7 @@ class Trainer:
                 correct += (predictions == labels).sum().item()
                 total += labels.size(0)
                 
-                pbar.set_postfix({'loss': loss.item():.4f})
+                pbar.set_postfix({'loss': f'{loss.item():.4f}'})
         
         avg_loss = total_loss / len(self.val_loader)
         accuracy = correct / total
