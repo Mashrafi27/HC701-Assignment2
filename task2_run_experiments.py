@@ -23,6 +23,12 @@ from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
 
+try:
+    from thop import profile as thop_profile
+    THOP_AVAILABLE = True
+except ImportError:
+    THOP_AVAILABLE = False
+
 # ═══════════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════════
@@ -30,11 +36,11 @@ warnings.filterwarnings('ignore')
 CONFIG = {
     "batch_size": 32,
     "num_epochs": 50,
-    "learning_rate": 0.1,  # Much higher learning rate for better convergence
+    "learning_rate": 0.001,
     "image_size": 224,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "seed": 42,
-    "early_stopping_patience": 15,  # Allow more epochs to converge
+    "early_stopping_patience": 5,
 }
 
 # Use relative paths for cross-platform compatibility
@@ -151,11 +157,9 @@ class Trainer:
         self.device = config["device"]
         self.model_name = model_name
         
-        # Use SGD with momentum instead of Adam for better convergence on image classification
-        self.optimizer = optim.SGD(self.model.parameters(), 
-                                   lr=config["learning_rate"], 
-                                   momentum=0.9,
-                                   weight_decay=1e-4)
+        self.optimizer = optim.Adam(self.model.parameters(),
+                                    lr=config["learning_rate"],
+                                    weight_decay=1e-4)
         # Use weighted loss to handle class imbalance
         self.criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight], device=config["device"]))
         
@@ -179,6 +183,7 @@ class Trainer:
             outputs = self.model(images)
             loss = self.criterion(outputs, labels)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             self.optimizer.step()
             
             total_loss += loss.item()
@@ -327,9 +332,9 @@ def main():
     val_dataset = PneumoniaDataset(val_df, transform=val_test_transform)
     test_dataset = PneumoniaDataset(test_df, transform=val_test_transform)
     
-    train_loader = DataLoader(train_dataset, batch_size=CONFIG["batch_size"], shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=0)
-    test_loader = DataLoader(test_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=0)
+    train_loader = DataLoader(train_dataset, batch_size=CONFIG["batch_size"], shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=4)
     
     # Calculate class weight to handle imbalance (NORMAL/PNEUMONIA ratio)
     n_normal = len(train_df[train_df['label'] == 'NORMAL'])
@@ -347,7 +352,18 @@ def main():
         'test_f1': [],
         'test_auc': [],
         'parameters': [],
+        'flops': [],
     }
+
+    def compute_flops(model, device):
+        if not THOP_AVAILABLE:
+            return 'N/A'
+        try:
+            dummy = torch.randn(1, 3, CONFIG["image_size"], CONFIG["image_size"]).to(device)
+            flops, _ = thop_profile(model, inputs=(dummy,), verbose=False)
+            return int(flops)
+        except Exception:
+            return 'N/A'
     
     all_test_preds = {}
     all_test_labels = {}
@@ -372,13 +388,15 @@ def main():
     f1_1 = f1_score(labels1, preds1)
     auc1 = roc_auc_score(labels1, probs1)
     params1 = sum(p.numel() for p in model1.parameters())
-    
+    flops1 = compute_flops(model1, CONFIG["device"])
+
     results['exp'].append(1)
     results['model'].append('Baseline CNN')
     results['test_accuracy'].append(acc1)
     results['test_f1'].append(f1_1)
     results['test_auc'].append(auc1)
     results['parameters'].append(params1)
+    results['flops'].append(flops1)
     
     all_test_preds['exp1'] = preds1
     all_test_labels['exp1'] = labels1
@@ -407,13 +425,15 @@ def main():
     f1_2 = f1_score(labels2, preds2)
     auc2 = roc_auc_score(labels2, probs2)
     params2 = sum(p.numel() for p in model2.parameters())
-    
+    flops2 = compute_flops(model2, CONFIG["device"])
+
     results['exp'].append(2)
     results['model'].append('ResNet50')
     results['test_accuracy'].append(acc2)
     results['test_f1'].append(f1_2)
     results['test_auc'].append(auc2)
     results['parameters'].append(params2)
+    results['flops'].append(flops2)
     
     all_test_preds['exp2'] = preds2
     all_test_labels['exp2'] = labels2
@@ -442,13 +462,15 @@ def main():
     f1_3 = f1_score(labels3, preds3)
     auc3 = roc_auc_score(labels3, probs3)
     params3 = sum(p.numel() for p in model3.parameters())
-    
+    flops3 = compute_flops(model3, CONFIG["device"])
+
     results['exp'].append(3)
     results['model'].append('DenseNet121')
     results['test_accuracy'].append(acc3)
     results['test_f1'].append(f1_3)
     results['test_auc'].append(auc3)
     results['parameters'].append(params3)
+    results['flops'].append(flops3)
     
     all_test_preds['exp3'] = preds3
     all_test_labels['exp3'] = labels3
@@ -484,13 +506,15 @@ def main():
     f1_4 = f1_score(labels4, preds4)
     auc4 = roc_auc_score(labels4, probs4)
     params4 = sum(p.numel() for p in model4.parameters())
-    
+    flops4 = compute_flops(model4, CONFIG["device"])
+
     results['exp'].append(4)
     results['model'].append('EfficientNet-B3')
     results['test_accuracy'].append(acc4)
     results['test_f1'].append(f1_4)
     results['test_auc'].append(auc4)
     results['parameters'].append(params4)
+    results['flops'].append(flops4)
     
     all_test_preds['exp4'] = preds4
     all_test_labels['exp4'] = labels4
@@ -515,13 +539,15 @@ def main():
     f1_5 = f1_score(labels1, preds5)
     auc5 = roc_auc_score(labels1, ensemble_probs)
     params5 = params1 + params2 + params3 + params4
-    
+    flops5 = sum(f for f in [flops1, flops2, flops3, flops4] if isinstance(f, int)) or 'N/A'
+
     results['exp'].append(5)
     results['model'].append('Ensemble (All 4)')
     results['test_accuracy'].append(acc5)
     results['test_f1'].append(f1_5)
     results['test_auc'].append(auc5)
     results['parameters'].append(params5)
+    results['flops'].append(flops5)
     
     all_test_preds['exp5'] = preds5
     all_test_labels['exp5'] = labels1
