@@ -96,7 +96,7 @@ class PneumoniaDataset(Dataset):
         if self.transform:
             image = self.transform(image)
         
-        return image, label, img_path
+        return image, label, str(img_path)
 
 # ═══════════════════════════════════════════════════════════════════════════════════
 # MODEL ARCHITECTURES
