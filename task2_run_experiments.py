@@ -142,7 +142,7 @@ class BaselineCNN(nn.Module):
 class Trainer:
     """Training and evaluation utilities"""
     
-    def __init__(self, model, train_loader, val_loader, test_loader, config, model_name):
+    def __init__(self, model, train_loader, val_loader, test_loader, config, model_name, pos_weight=1.0):
         self.model = model.to(config["device"])
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -156,7 +156,8 @@ class Trainer:
                                    lr=config["learning_rate"], 
                                    momentum=0.9,
                                    weight_decay=1e-4)
-        self.criterion = nn.BCEWithLogitsLoss()
+        # Use weighted loss to handle class imbalance
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight], device=config["device"]))
         
         self.train_losses = []
         self.val_losses = []
@@ -330,6 +331,14 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=0)
     test_loader = DataLoader(test_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=0)
     
+    # Calculate class weight to handle imbalance (NORMAL/PNEUMONIA ratio)
+    n_normal = len(train_df[train_df['label'] == 'NORMAL'])
+    n_pneumonia = len(train_df[train_df['label'] == 'PNEUMONIA'])
+    pos_weight = n_normal / n_pneumonia  # Weight for positive class (PNEUMONIA)
+    print(f"\nClass balance: {n_normal} NORMAL ({n_normal/len(train_df)*100:.1f}%), "
+          f"{n_pneumonia} PNEUMONIA ({n_pneumonia/len(train_df)*100:.1f}%)")
+    print(f"Pos weight for loss: {pos_weight:.4f}")
+    
     # Results storage
     results = {
         'exp': [],
@@ -355,7 +364,7 @@ def main():
     print("Reference: LeCun et al., 1998 - Gradient-based learning")
     
     model1 = BaselineCNN()
-    trainer1 = Trainer(model1, train_loader, val_loader, test_loader, CONFIG, "Baseline CNN")
+    trainer1 = Trainer(model1, train_loader, val_loader, test_loader, CONFIG, "Baseline CNN", pos_weight=pos_weight)
     trainer1.train_full()
     
     preds1, labels1, probs1 = trainer1.test()
@@ -390,7 +399,7 @@ def main():
     
     model2 = models.resnet50(pretrained=True)
     model2.fc = nn.Linear(model2.fc.in_features, 1)
-    trainer2 = Trainer(model2, train_loader, val_loader, test_loader, CONFIG, "ResNet50")
+    trainer2 = Trainer(model2, train_loader, val_loader, test_loader, CONFIG, "ResNet50", pos_weight=pos_weight)
     trainer2.train_full()
     
     preds2, labels2, probs2 = trainer2.test()
@@ -425,7 +434,7 @@ def main():
     
     model3 = models.densenet121(pretrained=True)
     model3.classifier = nn.Linear(model3.classifier.in_features, 1)
-    trainer3 = Trainer(model3, train_loader, val_loader, test_loader, CONFIG, "DenseNet121")
+    trainer3 = Trainer(model3, train_loader, val_loader, test_loader, CONFIG, "DenseNet121", pos_weight=pos_weight)
     trainer3.train_full()
     
     preds3, labels3, probs3 = trainer3.test()
@@ -467,7 +476,7 @@ def main():
         model4 = models.mobilenet_v2(pretrained=True)
         model4.classifier[1] = nn.Linear(model4.classifier[1].in_features, 1)
     
-    trainer4 = Trainer(model4, train_loader, val_loader, test_loader, CONFIG, "EfficientNet-B3")
+    trainer4 = Trainer(model4, train_loader, val_loader, test_loader, CONFIG, "EfficientNet-B3", pos_weight=pos_weight)
     trainer4.train_full()
     
     preds4, labels4, probs4 = trainer4.test()
