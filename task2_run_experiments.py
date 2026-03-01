@@ -30,11 +30,11 @@ warnings.filterwarnings('ignore')
 CONFIG = {
     "batch_size": 32,
     "num_epochs": 50,
-    "learning_rate": 0.001,
+    "learning_rate": 0.01,  # Increased from 0.001 for better convergence
     "image_size": 224,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "seed": 42,
-    "early_stopping_patience": 5,
+    "early_stopping_patience": 10,  # Increased patience to allow more epochs
 }
 
 # Use relative paths for cross-platform compatibility
