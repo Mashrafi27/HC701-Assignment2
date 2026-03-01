@@ -32,48 +32,56 @@ volume = img.get_fdata()
 print(f"Volume shape: {volume.shape}")
 print(f"Value range: [{volume.min():.2f}, {volume.max():.2f}]")
 
-# Step 2: Lung tissue thresholding (using raw pixel values from DICOM)
-print("\n[Step 2] Applying threshold for lung tissue...")
-# The DICOM raw values are not HU values yet, but we can threshold based on intensity
-# Air (lungs) has low values, soft tissue moderate, bone high
-# We'll use percentile-based approach
-threshold_low = np.percentile(volume[volume > 0], 5)  # 5th percentile of non-zero
-threshold_high = np.percentile(volume, 30)  # 30th percentile overall
+# Step 2: Lung segmentation using flood-fill to isolate internal air
+print("\n[Step 2] Segmenting lung air spaces...")
+# Raw DICOM values: background air ~0, lung air ~0-300, soft tissue ~300-1100, bone >1100
+# Strategy: threshold broadly to capture all air, then flood-fill from borders
+# to remove external background. What remains = internal air = lungs.
 
-print(f"Using thresholds: {threshold_low:.2f} to {threshold_high:.2f}")
-lung_mask = (volume >= threshold_low) & (volume <= threshold_high)
-print(f"Found {lung_mask.sum()} voxels in lung tissue range ({np.sum(lung_mask)/np.prod(volume.shape)*100:.1f}%)")
+AIR_THRESHOLD = 400  # raw values below this are air-like (lung + background)
+
+# Per-slice 2D flood-fill: removes external background within each axial slice.
+# 3D flood-fill fails because the trachea connects lung air to the image border.
+# In 2D, lung air is clearly interior (doesn't touch slice edges).
+print("  - Removing external background via per-slice 2D flood-fill...")
+lung_mask = np.zeros(volume.shape, dtype=bool)
+for z in range(volume.shape[2]):
+    sl = volume[:, :, z] < AIR_THRESHOLD
+    labeled_sl, n_sl = label(sl)
+    # Identify labels touching the 2D border
+    border_lbls = set()
+    border_lbls.update(labeled_sl[0, :].flat)
+    border_lbls.update(labeled_sl[-1, :].flat)
+    border_lbls.update(labeled_sl[:, 0].flat)
+    border_lbls.update(labeled_sl[:, -1].flat)
+    border_lbls.discard(0)
+    # Keep only internal air regions
+    for lbl in range(1, n_sl + 1):
+        if lbl not in border_lbls:
+            lung_mask[:, :, z] |= (labeled_sl == lbl)
+
+print(f"  - Internal air voxels: {lung_mask.sum()} ({lung_mask.sum()/volume.size*100:.1f}% of volume)")
 
 # Step 3: Morphological operations on first slice
 print("\n[Step 3] Processing first axial slice (71)...")
+structure = morphology.disk(3)
+
 first_slice = lung_mask[:, :, 0]
-mid_slice = lung_mask[:, :, 20]  # Middle slice for better visualization
-
-# Apply morphological operations
-print("  - Applying morphological closing...")
-structure = morphology.disk(3)  # 2D disk instead of 3D ball
 first_slice_closed = morphology.binary_closing(first_slice, structure)
-
-print("  - Removing small objects...")
 first_slice_cleaned = morphology.remove_small_objects(first_slice_closed, min_size=1000)
-
-print("  - Applying morphological operations...")
 first_slice_smooth = ndimage.binary_dilation(first_slice_cleaned, structure=structure, iterations=2)
 first_slice_smooth = ndimage.binary_erosion(first_slice_smooth, structure=structure, iterations=2)
 
-# Label connected components on first slice
 labeled_first, num_components = label(first_slice_smooth)
 print(f"  - Found {num_components} connected components in first slice")
 
-# Find the two largest components (left and right lungs)
 component_sizes = np.bincount(labeled_first.flat)
-component_sizes[0] = 0  # Ignore background
+component_sizes[0] = 0
 largest_two = np.argsort(component_sizes)[-2:]
 largest_two = largest_two[largest_two > 0]
 
 print(f"  - Largest components: {sorted(component_sizes[largest_two], reverse=True)}")
 
-# Create segmentation for first slice showing left and right lungs
 first_slice_segmented = np.zeros_like(labeled_first)
 left_lung_mask_first = (labeled_first == largest_two[np.argmin([np.where(labeled_first == c)[1].mean() for c in largest_two])])
 right_lung_mask_first = (labeled_first == largest_two[np.argmax([np.where(labeled_first == c)[1].mean() for c in largest_two])])
