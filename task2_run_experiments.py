@@ -8,7 +8,7 @@ import json
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 import torchvision.models as models
 import torchvision.transforms as transforms
 import pandas as pd
@@ -327,22 +327,30 @@ def main():
                            std=[0.229, 0.224, 0.225])
     ])
     
-    # Create datasets and loaders
+    # Create datasets
     train_dataset = PneumoniaDataset(train_df, transform=train_transform)
     val_dataset = PneumoniaDataset(val_df, transform=val_test_transform)
     test_dataset = PneumoniaDataset(test_df, transform=val_test_transform)
-    
-    train_loader = DataLoader(train_dataset, batch_size=CONFIG["batch_size"], shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=4)
-    test_loader = DataLoader(test_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=4)
-    
-    # Calculate class weight to handle imbalance (NORMAL/PNEUMONIA ratio)
+
+    # Class balance info
     n_normal = len(train_df[train_df['label'] == 'NORMAL'])
     n_pneumonia = len(train_df[train_df['label'] == 'PNEUMONIA'])
-    pos_weight = n_normal / n_pneumonia  # Weight for positive class (PNEUMONIA)
     print(f"\nClass balance: {n_normal} NORMAL ({n_normal/len(train_df)*100:.1f}%), "
           f"{n_pneumonia} PNEUMONIA ({n_pneumonia/len(train_df)*100:.1f}%)")
-    print(f"Pos weight for loss: {pos_weight:.4f}")
+
+    # WeightedRandomSampler: gives each class equal probability per batch
+    # Avoids the optimizer collapsing to a trivial all-one-class solution
+    sample_weights = train_df['label'].map(
+        {'NORMAL': n_pneumonia / n_normal, 'PNEUMONIA': 1.0}
+    ).values
+    sampler = WeightedRandomSampler(sample_weights, num_samples=len(train_df), replacement=True)
+    print("  Using WeightedRandomSampler for balanced batches (~50/50 per batch)")
+
+    train_loader = DataLoader(train_dataset, batch_size=CONFIG["batch_size"], sampler=sampler, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=4)
+
+    pos_weight = 1.0  # Batches are already balanced; no loss reweighting needed
     
     # Results storage
     results = {
