@@ -84,8 +84,8 @@ class PneumoniaDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.dataframe.iloc[idx]
-        # Rebuild path from data_dir so it works on any machine (HPC, local, etc.)
-        img_path = self.data_dir / row['split'] / row['label'] / row['filename']
+        # All images are physically in the train/ subfolder (val/test are logical splits)
+        img_path = self.data_dir / 'train' / row['label'] / row['filename']
         label = 1 if row['label'] == 'PNEUMONIA' else 0
 
         try:
