@@ -378,6 +378,9 @@ def main():
     all_test_preds = {}
     all_test_labels = {}
     all_trainers = {}
+
+    # Pretrained models need a lower LR to avoid overwriting ImageNet features
+    pretrain_config = {**CONFIG, "learning_rate": 0.0001}
     
     # ═══════════════════════════════════════════════════════════════════════════════════
     # EXPERIMENT 1: BASELINE CNN
@@ -427,7 +430,7 @@ def main():
     
     model2 = models.resnet50(pretrained=True)
     model2.fc = nn.Linear(model2.fc.in_features, 1)
-    trainer2 = Trainer(model2, train_loader, val_loader, test_loader, CONFIG, "ResNet50", pos_weight=pos_weight)
+    trainer2 = Trainer(model2, train_loader, val_loader, test_loader, pretrain_config, "ResNet50", pos_weight=pos_weight)
     trainer2.train_full()
     
     preds2, labels2, probs2 = trainer2.test()
@@ -464,7 +467,7 @@ def main():
     
     model3 = models.densenet121(pretrained=True)
     model3.classifier = nn.Linear(model3.classifier.in_features, 1)
-    trainer3 = Trainer(model3, train_loader, val_loader, test_loader, CONFIG, "DenseNet121", pos_weight=pos_weight)
+    trainer3 = Trainer(model3, train_loader, val_loader, test_loader, pretrain_config, "DenseNet121", pos_weight=pos_weight)
     trainer3.train_full()
     
     preds3, labels3, probs3 = trainer3.test()
@@ -508,7 +511,7 @@ def main():
         model4 = models.mobilenet_v2(pretrained=True)
         model4.classifier[1] = nn.Linear(model4.classifier[1].in_features, 1)
     
-    trainer4 = Trainer(model4, train_loader, val_loader, test_loader, CONFIG, "EfficientNet-B3", pos_weight=pos_weight)
+    trainer4 = Trainer(model4, train_loader, val_loader, test_loader, pretrain_config, "EfficientNet-B3", pos_weight=pos_weight)
     trainer4.train_full()
     
     preds4, labels4, probs4 = trainer4.test()
