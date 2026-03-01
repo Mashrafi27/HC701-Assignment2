@@ -36,11 +36,11 @@ except ImportError:
 CONFIG = {
     "batch_size": 32,
     "num_epochs": 50,
-    "learning_rate": 0.0001,
+    "learning_rate": 0.001,
     "image_size": 224,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "seed": 42,
-    "early_stopping_patience": 5,
+    "early_stopping_patience": 10,
 }
 
 # Use relative paths for cross-platform compatibility
@@ -261,7 +261,7 @@ class Trainer:
         
         # Add learning rate scheduler
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode='min', factor=0.5, patience=3
+            self.optimizer, mode='min', factor=0.5, patience=5
         )
         
         print(f"\n[Training {self.model_name}]")
