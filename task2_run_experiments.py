@@ -73,19 +73,21 @@ print(f"  Max epochs: {CONFIG['num_epochs']}")
 
 class PneumoniaDataset(Dataset):
     """Custom dataset for chest X-ray pneumonia classification"""
-    
-    def __init__(self, dataframe, transform=None):
+
+    def __init__(self, dataframe, data_dir, transform=None):
         self.dataframe = dataframe
+        self.data_dir = Path(data_dir)
         self.transform = transform
-    
+
     def __len__(self):
         return len(self.dataframe)
-    
+
     def __getitem__(self, idx):
         row = self.dataframe.iloc[idx]
-        img_path = row['filepath']
+        # Rebuild path from data_dir so it works on any machine (HPC, local, etc.)
+        img_path = self.data_dir / row['split'] / row['label'] / row['filename']
         label = 1 if row['label'] == 'PNEUMONIA' else 0
-        
+
         try:
             image = Image.open(img_path).convert('RGB')
         except:
@@ -327,10 +329,10 @@ def main():
                            std=[0.229, 0.224, 0.225])
     ])
     
-    # Create datasets
-    train_dataset = PneumoniaDataset(train_df, transform=train_transform)
-    val_dataset = PneumoniaDataset(val_df, transform=val_test_transform)
-    test_dataset = PneumoniaDataset(test_df, transform=val_test_transform)
+    # Create datasets (data_dir resolves paths on any machine)
+    train_dataset = PneumoniaDataset(train_df, PATHS['data_dir'], transform=train_transform)
+    val_dataset = PneumoniaDataset(val_df, PATHS['data_dir'], transform=val_test_transform)
+    test_dataset = PneumoniaDataset(test_df, PATHS['data_dir'], transform=val_test_transform)
 
     # Class balance info
     n_normal = len(train_df[train_df['label'] == 'NORMAL'])
