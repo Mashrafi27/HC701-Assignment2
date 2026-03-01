@@ -312,19 +312,20 @@ Exp 5: DenseNet121 (Frozen) & 0.9080 & 0.9350 & 0.9879 \\
 
 \begin{table}[H]
 \centering
-\caption{Model complexity: parameters and FLOPs at $224\times224$ input.
-         FLOPs for standard architectures are cited from published work;
-         BaselineCNN FLOPs computed analytically.}
+\caption{Model complexity: parameters and FLOPs at $224\times224$ input,
+         measured using \texttt{thop} \cite{thop2023} on a single forward pass.
+         Exp 5 shares the same architecture as Exp 3; frozen weights do not
+         affect inference FLOPs.}
 \label{tab:flops}
 \begin{tabular}{lrr}
 \toprule
 \textbf{Model} & \textbf{Parameters} & \textbf{FLOPs (GFLOPs)} \\
 \midrule
-Exp 1: Baseline CNN     & 422{,}401      & 1.47  \\
-Exp 2: ResNet50         & 23{,}510{,}081 & 4.09 \cite{he2016deep} \\
-Exp 3: DenseNet121      & 6{,}954{,}881  & 2.87 \cite{huang2017densely} \\
-Exp 4: EfficientNet-B3  & 10{,}697{,}769 & 1.83 \cite{tan2019efficientnet} \\
-Exp 5: DenseNet121 (Frozen) & 6{,}954{,}881 & 2.87 \cite{huang2017densely} \\
+Exp 1: Baseline CNN          & 422{,}401      & 0.75 \\
+Exp 2: ResNet50              & 23{,}510{,}081 & 4.13 \\
+Exp 3: DenseNet121 (full)    & 6{,}954{,}881  & 2.90 \\
+Exp 4: EfficientNet-B3       & 10{,}697{,}769 & 1.02 \\
+Exp 5: DenseNet121 (frozen)  & 6{,}954{,}881  & 2.90 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -410,6 +411,11 @@ Adam: A method for stochastic optimization.
 Yosinski, J., Clune, J., Bengio, Y., \& Lipson, H. (2014).
 How transferable are features in deep neural networks?
 \textit{NeurIPS}, 27.
+
+\bibitem{thop2023}
+Ligeng Zhu. (2019).
+\texttt{thop}: PyTorch-OpCounter.
+\url{https://github.com/Lyken17/pytorch-OpCounter}.
 
 \end{thebibliography}
 
