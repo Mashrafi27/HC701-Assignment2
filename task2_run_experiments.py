@@ -30,11 +30,11 @@ warnings.filterwarnings('ignore')
 CONFIG = {
     "batch_size": 32,
     "num_epochs": 50,
-    "learning_rate": 0.01,  # Increased from 0.001 for better convergence
+    "learning_rate": 0.1,  # Much higher learning rate for better convergence
     "image_size": 224,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "seed": 42,
-    "early_stopping_patience": 10,  # Increased patience to allow more epochs
+    "early_stopping_patience": 15,  # Allow more epochs to converge
 }
 
 # Use relative paths for cross-platform compatibility
@@ -151,7 +151,11 @@ class Trainer:
         self.device = config["device"]
         self.model_name = model_name
         
-        self.optimizer = optim.Adam(self.model.parameters(), lr=config["learning_rate"])
+        # Use SGD with momentum instead of Adam for better convergence on image classification
+        self.optimizer = optim.SGD(self.model.parameters(), 
+                                   lr=config["learning_rate"], 
+                                   momentum=0.9,
+                                   weight_decay=1e-4)
         self.criterion = nn.BCEWithLogitsLoss()
         
         self.train_losses = []
@@ -244,9 +248,15 @@ class Trainer:
         return np.array(all_preds), np.array(all_labels), np.array(all_probs)
     
     def train_full(self):
-        best_val_acc = 0
+        best_val_loss = float('inf')
         patience_counter = 0
         best_epoch = 0
+        best_state = None
+        
+        # Add learning rate scheduler
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer, mode='min', factor=0.5, patience=3, verbose=True
+        )
         
         print(f"\n[Training {self.model_name}]")
         pbar = tqdm(range(self.config["num_epochs"]), desc="Epochs", unit="epoch")
@@ -254,11 +264,14 @@ class Trainer:
             train_loss, train_acc = self.train_epoch()
             val_loss, val_acc = self.validate()
             
+            # Update learning rate based on validation loss
+            scheduler.step(val_loss)
+            
             # Update progress bar description
             pbar.set_description(f"Epoch {epoch+1} | Train: L={train_loss:.4f} A={train_acc:.4f} | Val: L={val_loss:.4f} A={val_acc:.4f}")
             
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
                 best_epoch = epoch + 1
                 patience_counter = 0
                 best_state = self.model.state_dict().copy()
@@ -266,10 +279,11 @@ class Trainer:
                 patience_counter += 1
                 if patience_counter >= self.config["early_stopping_patience"]:
                     print(f"  Early stopping at epoch {epoch+1} (best: {best_epoch})")
-                    self.model.load_state_dict(best_state)
+                    if best_state is not None:
+                        self.model.load_state_dict(best_state)
                     break
         
-        print(f"  ✓ Training complete (Best epoch: {best_epoch}, Acc: {best_val_acc:.4f})")
+        print(f"  ✓ Training complete (Best epoch: {best_epoch}, Val Loss: {best_val_loss:.4f})")
 
 # ═══════════════════════════════════════════════════════════════════════════════════
 # MAIN EXECUTION
