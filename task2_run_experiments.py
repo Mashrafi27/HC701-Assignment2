@@ -5,6 +5,7 @@ Executes 5 experiments for pneumonia classification with detailed results
 
 import os
 import json
+import copy
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -36,7 +37,7 @@ except ImportError:
 CONFIG = {
     "batch_size": 32,
     "num_epochs": 50,
-    "learning_rate": 0.001,
+    "learning_rate": 0.0001,
     "image_size": 224,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "seed": 42,
@@ -282,7 +283,7 @@ class Trainer:
                 best_val_loss = val_loss
                 best_epoch = epoch + 1
                 patience_counter = 0
-                best_state = self.model.state_dict().copy()
+                best_state = copy.deepcopy(self.model.state_dict())
             else:
                 patience_counter += 1
                 if patience_counter >= self.config["early_stopping_patience"]:
