@@ -9,7 +9,7 @@ import copy
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 import torchvision.models as models
 import torchvision.transforms as transforms
 import pandas as pd
@@ -37,7 +37,7 @@ except ImportError:
 CONFIG = {
     "batch_size": 32,
     "num_epochs": 50,
-    "learning_rate": 0.0001,
+    "learning_rate": 0.001,
     "image_size": 224,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "seed": 42,
@@ -341,13 +341,16 @@ def main():
     print(f"\nClass balance: {n_normal} NORMAL ({n_normal/len(train_df)*100:.1f}%), "
           f"{n_pneumonia} PNEUMONIA ({n_pneumonia/len(train_df)*100:.1f}%)")
 
-    # Use natural class distribution with pos_weight to handle imbalance.
-    # pos_weight = n_normal/n_pneumonia makes the loss equally penalize
-    # predicting all-PNEUMONIA vs all-NORMAL, avoiding trivial solutions.
-    pos_weight = n_normal / n_pneumonia
-    print(f"  Using pos_weight={pos_weight:.4f} (n_normal/n_pneumonia) for loss reweighting")
+    # WeightedRandomSampler: gives each class equal probability per batch
+    sample_weights = train_df['label'].map(
+        {'NORMAL': n_pneumonia / n_normal, 'PNEUMONIA': 1.0}
+    ).values
+    sampler = WeightedRandomSampler(sample_weights, num_samples=len(train_df), replacement=True)
+    print("  Using WeightedRandomSampler for balanced batches (~50/50 per batch)")
 
-    train_loader = DataLoader(train_dataset, batch_size=CONFIG["batch_size"], shuffle=True, num_workers=4)
+    pos_weight = 1.0  # Batches already balanced by sampler
+
+    train_loader = DataLoader(train_dataset, batch_size=CONFIG["batch_size"], sampler=sampler, num_workers=4)
     val_loader = DataLoader(val_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=4)
     test_loader = DataLoader(test_dataset, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=4)
     
