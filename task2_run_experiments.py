@@ -373,6 +373,36 @@ def main():
     all_test_labels = {}
     all_trainers = {}
 
+    class CachedTrainer:
+        """Holds cached training history so training curves work without retraining."""
+        def __init__(self, train_losses, val_losses):
+            self.train_losses = train_losses.tolist()
+            self.val_losses = val_losses.tolist()
+
+    def save_exp_cache(exp_num, preds, labels, probs, trainer=None):
+        prefix = str(PATHS["output_dir"] / f"exp{exp_num}")
+        np.save(prefix + "_preds.npy", preds)
+        np.save(prefix + "_labels.npy", labels)
+        np.save(prefix + "_probs.npy", probs)
+        if trainer is not None:
+            np.save(prefix + "_train_losses.npy", np.array(trainer.train_losses))
+            np.save(prefix + "_val_losses.npy", np.array(trainer.val_losses))
+
+    def load_exp_cache(exp_num):
+        prefix = str(PATHS["output_dir"] / f"exp{exp_num}")
+        if not os.path.exists(prefix + "_preds.npy"):
+            return None
+        preds = np.load(prefix + "_preds.npy")
+        labels = np.load(prefix + "_labels.npy")
+        probs = np.load(prefix + "_probs.npy")
+        cached_trainer = None
+        if os.path.exists(prefix + "_train_losses.npy"):
+            cached_trainer = CachedTrainer(
+                np.load(prefix + "_train_losses.npy"),
+                np.load(prefix + "_val_losses.npy")
+            )
+        return preds, labels, probs, cached_trainer
+
     # Pretrained models need a lower LR to avoid overwriting ImageNet features
     pretrain_config = {**CONFIG, "learning_rate": 0.0001}
     
@@ -387,15 +417,25 @@ def main():
     print("Reference: LeCun et al., 1998 - Gradient-based learning")
     
     model1 = BaselineCNN()
-    trainer1 = Trainer(model1, train_loader, val_loader, test_loader, CONFIG, "Baseline CNN", pos_weight=pos_weight)
-    trainer1.train_full()
-    
-    preds1, labels1, probs1 = trainer1.test()
+    params1 = sum(p.numel() for p in model1.parameters())
+    flops1 = compute_flops(model1, CONFIG["device"])
+
+    cached1 = load_exp_cache(1)
+    if cached1:
+        preds1, labels1, probs1, cached_trainer1 = cached1
+        print("✓ Loaded Exp 1 from cache (delete exp1_*.npy to retrain)")
+        if cached_trainer1:
+            all_trainers['exp1'] = cached_trainer1
+    else:
+        trainer1 = Trainer(model1, train_loader, val_loader, test_loader, CONFIG, "Baseline CNN", pos_weight=pos_weight)
+        trainer1.train_full()
+        preds1, labels1, probs1 = trainer1.test()
+        save_exp_cache(1, preds1, labels1, probs1, trainer1)
+        all_trainers['exp1'] = trainer1
+
     acc1 = accuracy_score(labels1, preds1)
     f1_1 = f1_score(labels1, preds1)
     auc1 = roc_auc_score(labels1, probs1)
-    params1 = sum(p.numel() for p in model1.parameters())
-    flops1 = compute_flops(model1, CONFIG["device"])
 
     results['exp'].append(1)
     results['model'].append('Baseline CNN')
@@ -404,11 +444,10 @@ def main():
     results['test_auc'].append(auc1)
     results['parameters'].append(params1)
     results['flops'].append(flops1)
-    
+
     all_test_preds['exp1'] = preds1
     all_test_labels['exp1'] = labels1
-    all_trainers['exp1'] = trainer1
-    
+
     print(f"\n✓ Results: Accuracy={acc1:.4f}, F1={f1_1:.4f}, AUC={auc1:.4f}")
     print(f"  Parameters: {params1:,}")
     
@@ -424,15 +463,25 @@ def main():
     
     model2 = models.resnet50(pretrained=True)
     model2.fc = nn.Linear(model2.fc.in_features, 1)
-    trainer2 = Trainer(model2, train_loader, val_loader, test_loader, pretrain_config, "ResNet50", pos_weight=pos_weight)
-    trainer2.train_full()
-    
-    preds2, labels2, probs2 = trainer2.test()
+    params2 = sum(p.numel() for p in model2.parameters())
+    flops2 = compute_flops(model2, CONFIG["device"])
+
+    cached2 = load_exp_cache(2)
+    if cached2:
+        preds2, labels2, probs2, cached_trainer2 = cached2
+        print("✓ Loaded Exp 2 from cache (delete exp2_*.npy to retrain)")
+        if cached_trainer2:
+            all_trainers['exp2'] = cached_trainer2
+    else:
+        trainer2 = Trainer(model2, train_loader, val_loader, test_loader, pretrain_config, "ResNet50", pos_weight=pos_weight)
+        trainer2.train_full()
+        preds2, labels2, probs2 = trainer2.test()
+        save_exp_cache(2, preds2, labels2, probs2, trainer2)
+        all_trainers['exp2'] = trainer2
+
     acc2 = accuracy_score(labels2, preds2)
     f1_2 = f1_score(labels2, preds2)
     auc2 = roc_auc_score(labels2, probs2)
-    params2 = sum(p.numel() for p in model2.parameters())
-    flops2 = compute_flops(model2, CONFIG["device"])
 
     results['exp'].append(2)
     results['model'].append('ResNet50')
@@ -441,11 +490,10 @@ def main():
     results['test_auc'].append(auc2)
     results['parameters'].append(params2)
     results['flops'].append(flops2)
-    
+
     all_test_preds['exp2'] = preds2
     all_test_labels['exp2'] = labels2
-    all_trainers['exp2'] = trainer2
-    
+
     print(f"\n✓ Results: Accuracy={acc2:.4f}, F1={f1_2:.4f}, AUC={auc2:.4f}")
     print(f"  Parameters: {params2:,}")
     
@@ -461,15 +509,25 @@ def main():
     
     model3 = models.densenet121(pretrained=True)
     model3.classifier = nn.Linear(model3.classifier.in_features, 1)
-    trainer3 = Trainer(model3, train_loader, val_loader, test_loader, pretrain_config, "DenseNet121", pos_weight=pos_weight)
-    trainer3.train_full()
-    
-    preds3, labels3, probs3 = trainer3.test()
+    params3 = sum(p.numel() for p in model3.parameters())
+    flops3 = compute_flops(model3, CONFIG["device"])
+
+    cached3 = load_exp_cache(3)
+    if cached3:
+        preds3, labels3, probs3, cached_trainer3 = cached3
+        print("✓ Loaded Exp 3 from cache (delete exp3_*.npy to retrain)")
+        if cached_trainer3:
+            all_trainers['exp3'] = cached_trainer3
+    else:
+        trainer3 = Trainer(model3, train_loader, val_loader, test_loader, pretrain_config, "DenseNet121", pos_weight=pos_weight)
+        trainer3.train_full()
+        preds3, labels3, probs3 = trainer3.test()
+        save_exp_cache(3, preds3, labels3, probs3, trainer3)
+        all_trainers['exp3'] = trainer3
+
     acc3 = accuracy_score(labels3, preds3)
     f1_3 = f1_score(labels3, preds3)
     auc3 = roc_auc_score(labels3, probs3)
-    params3 = sum(p.numel() for p in model3.parameters())
-    flops3 = compute_flops(model3, CONFIG["device"])
 
     results['exp'].append(3)
     results['model'].append('DenseNet121')
@@ -478,11 +536,10 @@ def main():
     results['test_auc'].append(auc3)
     results['parameters'].append(params3)
     results['flops'].append(flops3)
-    
+
     all_test_preds['exp3'] = preds3
     all_test_labels['exp3'] = labels3
-    all_trainers['exp3'] = trainer3
-    
+
     print(f"\n✓ Results: Accuracy={acc3:.4f}, F1={f1_3:.4f}, AUC={auc3:.4f}")
     print(f"  Parameters: {params3:,}")
     
@@ -504,16 +561,26 @@ def main():
         print("Note: EfficientNet not available, using MobileNetV2 as alternative")
         model4 = models.mobilenet_v2(pretrained=True)
         model4.classifier[1] = nn.Linear(model4.classifier[1].in_features, 1)
-    
-    trainer4 = Trainer(model4, train_loader, val_loader, test_loader, pretrain_config, "EfficientNet-B3", pos_weight=pos_weight)
-    trainer4.train_full()
-    
-    preds4, labels4, probs4 = trainer4.test()
+
+    params4 = sum(p.numel() for p in model4.parameters())
+    flops4 = compute_flops(model4, CONFIG["device"])
+
+    cached4 = load_exp_cache(4)
+    if cached4:
+        preds4, labels4, probs4, cached_trainer4 = cached4
+        print("✓ Loaded Exp 4 from cache (delete exp4_*.npy to retrain)")
+        if cached_trainer4:
+            all_trainers['exp4'] = cached_trainer4
+    else:
+        trainer4 = Trainer(model4, train_loader, val_loader, test_loader, pretrain_config, "EfficientNet-B3", pos_weight=pos_weight)
+        trainer4.train_full()
+        preds4, labels4, probs4 = trainer4.test()
+        save_exp_cache(4, preds4, labels4, probs4, trainer4)
+        all_trainers['exp4'] = trainer4
+
     acc4 = accuracy_score(labels4, preds4)
     f1_4 = f1_score(labels4, preds4)
     auc4 = roc_auc_score(labels4, probs4)
-    params4 = sum(p.numel() for p in model4.parameters())
-    flops4 = compute_flops(model4, CONFIG["device"])
 
     results['exp'].append(4)
     results['model'].append('EfficientNet-B3')
@@ -522,11 +589,10 @@ def main():
     results['test_auc'].append(auc4)
     results['parameters'].append(params4)
     results['flops'].append(flops4)
-    
+
     all_test_preds['exp4'] = preds4
     all_test_labels['exp4'] = labels4
-    all_trainers['exp4'] = trainer4
-    
+
     print(f"\n✓ Results: Accuracy={acc4:.4f}, F1={f1_4:.4f}, AUC={auc4:.4f}")
     print(f"  Parameters: {params4:,}")
     
@@ -535,32 +601,48 @@ def main():
     # ═══════════════════════════════════════════════════════════════════════════════════
     
     print("\n" + "="*80)
-    print("EXPERIMENT 5: ENSEMBLE")
+    print("EXPERIMENT 5: DENSENET121 (FROZEN BACKBONE)")
     print("="*80)
-    print("Method: Averaging predictions from all 4 models")
-    print("Rationale: Combine complementary model strengths")
-    
-    ensemble_probs = (probs1 + probs2 + probs3 + probs4) / 4
-    preds5 = (ensemble_probs > 0.5).astype(int)
-    acc5 = accuracy_score(labels1, preds5)
-    f1_5 = f1_score(labels1, preds5)
-    auc5 = roc_auc_score(labels1, ensemble_probs)
-    params5 = params1 + params2 + params3 + params4
-    flops5 = sum(f for f in [flops1, flops2, flops3, flops4] if isinstance(f, int)) or 'N/A'
+    print("Architecture: Pre-trained DenseNet121 — backbone frozen, only classifier trained")
+    print("Strategy: Feature extraction (no fine-tuning of pretrained layers)")
+    print("Rationale: Ablation vs Exp 3 (full fine-tuning) to quantify value of fine-tuning")
+    print("Reference: Yosinski et al., 2014 - How transferable are features in deep neural networks?")
+
+    model5 = models.densenet121(pretrained=True)
+    # Freeze all pretrained layers
+    for param in model5.parameters():
+        param.requires_grad = False
+    # Add a fresh trainable classifier head
+    model5.classifier = nn.Linear(model5.classifier.in_features, 1)
+
+    # With only the linear head trainable, LR=0.001 is appropriate
+    frozen_config = {**CONFIG, "learning_rate": 0.001}
+    trainer5 = Trainer(model5, train_loader, val_loader, test_loader, frozen_config,
+                       "DenseNet121 (Frozen)", pos_weight=pos_weight)
+    trainer5.train_full()
+
+    preds5, labels5, probs5 = trainer5.test()
+    acc5 = accuracy_score(labels5, preds5)
+    f1_5 = f1_score(labels5, preds5)
+    auc5 = roc_auc_score(labels5, probs5)
+    params5 = sum(p.numel() for p in model5.parameters())
+    trainable5 = sum(p.numel() for p in model5.parameters() if p.requires_grad)
+    flops5 = compute_flops(model5, CONFIG["device"])
 
     results['exp'].append(5)
-    results['model'].append('Ensemble (All 4)')
+    results['model'].append('DenseNet121 (Frozen)')
     results['test_accuracy'].append(acc5)
     results['test_f1'].append(f1_5)
     results['test_auc'].append(auc5)
     results['parameters'].append(params5)
     results['flops'].append(flops5)
-    
+
     all_test_preds['exp5'] = preds5
-    all_test_labels['exp5'] = labels1
-    
+    all_test_labels['exp5'] = labels5
+    all_trainers['exp5'] = trainer5
+
     print(f"\n✓ Results: Accuracy={acc5:.4f}, F1={f1_5:.4f}, AUC={auc5:.4f}")
-    print(f"  Combined parameters: {params5:,}")
+    print(f"  Total parameters: {params5:,} | Trainable: {trainable5:,}")
     
     # ═══════════════════════════════════════════════════════════════════════════════════
     # SAVE RESULTS
@@ -621,21 +703,21 @@ def main():
     plt.close()
     
     # Summary report
+    best_idx = results_df['test_accuracy'].idxmax()
     summary = f"""
 ================================================================================
 EXPERIMENT SUMMARY REPORT
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 ================================================================================
 
-BEST MODEL: {results_df.loc[results_df['test_accuracy'].idxmax(), 'model']}
+BEST MODEL: {results_df.loc[best_idx, 'model']}
   Accuracy: {results_df['test_accuracy'].max():.4f}
-  F1 Score: {results_df.loc[results_df['test_accuracy'].idxmax(), 'test_f1']:.4f}
-  AUC: {results_df.loc[results_df['test_accuracy'].idxmax(), 'test_auc']:.4f}
+  F1 Score: {results_df.loc[best_idx, 'test_f1']:.4f}
+  AUC: {results_df.loc[best_idx, 'test_auc']:.4f}
 
-ENSEMBLE MODEL:
-  Accuracy: {results_df.iloc[-1]['test_accuracy']:.4f}
-  F1 Score: {results_df.iloc[-1]['test_f1']:.4f}
-  AUC: {results_df.iloc[-1]['test_auc']:.4f}
+EXP 5 (DenseNet121 Frozen vs Full Fine-tuning in Exp 3):
+  Exp 3 (fine-tuned) Accuracy: {results_df.iloc[2]['test_accuracy']:.4f}
+  Exp 5 (frozen)     Accuracy: {results_df.iloc[4]['test_accuracy']:.4f}
 
 DETAILED RESULTS:
 {results_df.to_string()}

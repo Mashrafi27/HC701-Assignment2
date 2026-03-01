@@ -281,10 +281,12 @@ Validation and test images are only resized and normalised (no augmentation).
     achieve high accuracy at lower parameter counts than ResNet/DenseNet.
     B3 offers a strong accuracy/efficiency trade-off. \\
 
-5 & Ensemble (Exp 1--4) & -- &
-    Averaging the sigmoid probabilities of all four models reduces variance
-    and typically outperforms any individual model \cite{dietterich2000ensemble}.
-    No additional training is required. \\
+5 & DenseNet121 \cite{huang2017densely} (frozen backbone) & 0.001 &
+    Ablation of fine-tuning depth: all ImageNet-pretrained layers are frozen;
+    only the final linear classifier is trained (feature extraction mode).
+    Directly comparable to Exp~3 (full fine-tuning) to quantify how much of
+    the performance gain comes from updating pretrained weights vs.\ using
+    them as fixed features \cite{yosinski2014transferable}. \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -303,7 +305,7 @@ Exp 1: Baseline CNN     & 0.9770 & 0.9846 & 0.9965 \\
 Exp 2: ResNet50         & 0.9904 & 0.9935 & 0.9996 \\
 Exp 3: DenseNet121      & 0.9923 & 0.9948 & 0.9991 \\
 Exp 4: EfficientNet-B3  & 0.9789 & 0.9857 & 0.9988 \\
-Exp 5: Ensemble         & \textbf{0.9923} & \textbf{0.9948} & \textbf{0.9996} \\
+Exp 5: DenseNet121 (Frozen) & TBD & TBD & TBD \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -322,7 +324,7 @@ Exp 1: Baseline CNN     & 422{,}401      & 1.47  \\
 Exp 2: ResNet50         & 23{,}510{,}081 & 4.09 \cite{he2016deep} \\
 Exp 3: DenseNet121      & 6{,}954{,}881  & 2.87 \cite{huang2017densely} \\
 Exp 4: EfficientNet-B3  & 10{,}697{,}769 & 1.83 \cite{tan2019efficientnet} \\
-Exp 5: Ensemble (sum)   & 41{,}585{,}132 & 10.26 \\
+Exp 5: DenseNet121 (Frozen) & 6{,}954{,}881 & 2.87 \cite{huang2017densely} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -408,11 +410,6 @@ Adam: A method for stochastic optimization.
 Yosinski, J., Clune, J., Bengio, Y., \& Lipson, H. (2014).
 How transferable are features in deep neural networks?
 \textit{NeurIPS}, 27.
-
-\bibitem{dietterich2000ensemble}
-Dietterich, T.~G. (2000).
-Ensemble methods in machine learning.
-\textit{International Workshop on Multiple Classifier Systems}, 1--15.
 
 \end{thebibliography}
 
