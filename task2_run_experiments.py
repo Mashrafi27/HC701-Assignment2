@@ -596,9 +596,9 @@ def main():
     print(f"✓ Saved: confusion_matrices.png")
     plt.close()
     
-    # Training curves for top 2 models
+    # Training curves for top 2 models (ensemble has no trainer, exclude it)
     sorted_indices = np.argsort(results_df['test_accuracy'].values)[::-1]
-    top_2_indices = sorted_indices[:2]
+    top_2_indices = [i for i in sorted_indices if f'exp{i+1}' in all_trainers][:2]
     
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     fig.suptitle('Training Curves - Top 2 Models', fontsize=16, fontweight='bold')
