@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, roc_auc_score
 import seaborn as sns
 from datetime import datetime
+from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -164,7 +165,8 @@ class Trainer:
         correct = 0
         total = 0
         
-        for images, labels, _ in self.train_loader:
+        pbar = tqdm(self.train_loader, desc="Training", leave=False)
+        for images, labels, _ in pbar:
             images = images.to(self.device)
             labels = labels.float().unsqueeze(1).to(self.device)
             
@@ -178,6 +180,8 @@ class Trainer:
             predictions = (torch.sigmoid(outputs) > 0.5).float()
             correct += (predictions == labels).sum().item()
             total += labels.size(0)
+            
+            pbar.set_postfix({'loss': loss.item():.4f})
         
         avg_loss = total_loss / len(self.train_loader)
         accuracy = correct / total
@@ -193,8 +197,9 @@ class Trainer:
         correct = 0
         total = 0
         
+        pbar = tqdm(self.val_loader, desc="Validating", leave=False)
         with torch.no_grad():
-            for images, labels, _ in self.val_loader:
+            for images, labels, _ in pbar:
                 images = images.to(self.device)
                 labels = labels.float().unsqueeze(1).to(self.device)
                 
@@ -205,6 +210,8 @@ class Trainer:
                 predictions = (torch.sigmoid(outputs) > 0.5).float()
                 correct += (predictions == labels).sum().item()
                 total += labels.size(0)
+                
+                pbar.set_postfix({'loss': loss.item():.4f})
         
         avg_loss = total_loss / len(self.val_loader)
         accuracy = correct / total
@@ -220,8 +227,9 @@ class Trainer:
         all_labels = []
         all_probs = []
         
+        pbar = tqdm(self.test_loader, desc="Testing", leave=False)
         with torch.no_grad():
-            for images, labels, _ in self.test_loader:
+            for images, labels, _ in pbar:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 
@@ -241,14 +249,13 @@ class Trainer:
         best_epoch = 0
         
         print(f"\n[Training {self.model_name}]")
-        for epoch in range(self.config["num_epochs"]):
+        pbar = tqdm(range(self.config["num_epochs"]), desc="Epochs", unit="epoch")
+        for epoch in pbar:
             train_loss, train_acc = self.train_epoch()
             val_loss, val_acc = self.validate()
             
-            if (epoch + 1) % 10 == 0:
-                print(f"  Epoch {epoch+1}/{self.config['num_epochs']} - "
-                      f"Train: Loss={train_loss:.4f}, Acc={train_acc:.4f} | "
-                      f"Val: Loss={val_loss:.4f}, Acc={val_acc:.4f}")
+            # Update progress bar description
+            pbar.set_description(f"Epoch {epoch+1} | Train: L={train_loss:.4f} A={train_acc:.4f} | Val: L={val_loss:.4f} A={val_acc:.4f}")
             
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
