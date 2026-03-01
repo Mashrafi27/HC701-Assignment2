@@ -255,7 +255,7 @@ class Trainer:
         
         # Add learning rate scheduler
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode='min', factor=0.5, patience=3, verbose=True
+            self.optimizer, mode='min', factor=0.5, patience=3
         )
         
         print(f"\n[Training {self.model_name}]")
